@@ -15,7 +15,7 @@ def main():
 
     dbase = DBManager()
     dbase.create_database(db_name)
-    print(f"БД {db_name} успешно создана")
+    print(f"БД {db_name} успешно создана.")
     hh = HeadHunter("Яндекс")
     vacancies = hh.get_vacancies("1740")
     dbase.save_data_to_database(vacancies, db_name)
