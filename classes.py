@@ -9,7 +9,7 @@ from exceptions import ParsingError
 
 class HeadHunter:
     """
-        Класс для доступа к api HeadHunter.
+        Класс для доступа к api HeadHunter
         """
     employers_dict = {}
     employers_data = []

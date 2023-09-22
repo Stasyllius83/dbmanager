@@ -7,9 +7,6 @@ dict_companies = {'yandex': 1740, 'vk': 15478, 'mailru': 17181, 'tinkoff': 78638
 
 def main():
 
-    vacancies_json = []
-    companies_json = []
-
     db_name = 'db_headhunter'
     # params = config()
 
