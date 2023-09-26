@@ -31,12 +31,13 @@ class HeadHunter:
         response = requests.get(url_employers, params=params)
         if response.status_code != 200:
             raise ParsingError(f"Ошибка получения данных по работодателю! Статус: {response.status_code}")
-        employer = response.json()
+        employer = response.json().get('items', [])
         if employer is None:
             return "Данные не получены"
         elif 'items' not in employer:
             return "Нет указанных работодателей"
         else:
+            print(employer)
             self.employers_dict = {'id': employer['items'][0]['id'], 'name': employer['items'][0]['name'],
                                    'url': employer['items'][0]['alternate_url']}
             self.employers_data.append(self.employers_dict)
@@ -76,26 +77,27 @@ class HeadHunter:
                     vacancy_data["salary"]["from"] = None
                     vacancy_data["salary"]["to"] = None
 
-                vacancy_dict = {'id': vacancy_data['id'], 'vacancy': vacancy_data['name'],
+                vacancy_dict = {'id': vacancy_data['id'],
+                                'name': vacancy_data['name'],
                                 'url': vacancy_data['apply_alternate_url'],
-                                'salary_from': vacancy_data['salary']['from'],
+                                'salary_from': vacancy_data['salary']['from'] if vacancy_data["salary"] else None,
                                 'salary_to': vacancy_data['salary']['to'],
-                                'employer_id': vacancy_data['employer']["id"]}
+                                'employer_id': vacancy_data.get('employer', {}).get("id", 'N/A')}
                 if vacancy_dict['salary_to'] is None:
                     vacancy_dict['salary_to'] = vacancy_dict['salary_from']
                 vacancies_employer_dicts.append(vacancy_dict)
         return vacancies_employer_dicts
 
 
-class Connector_DB(HeadHunter):
+class Add_to_DB(HeadHunter):
     """
-    Класс для взаимодействия с базой данных
+    Класс для добавления из списка выбранных работодателей в базу данных
     """
     __employers_name = []
 
     def __init__(self, employers_list: list):
         """
-
+        В инициализаторе список выбранных работодателей
         :param employers_list:
         """
         self.employers_list = employers_list
@@ -104,9 +106,9 @@ class Connector_DB(HeadHunter):
             self.__employers_name.append(self.employer)
 
     @classmethod
-    def __get_all_employers(cls):
+    def get_all_employers(cls):
         """
-
+        Получает данные по работодателям и родительского класса
         :return:
         """
         for employer in cls.__employers_name:
@@ -121,7 +123,6 @@ class DBManager:
     """
 
     def __init__(self):
-        # self.params = params
         self.conn = None
         self.cur = None
 
@@ -131,7 +132,6 @@ class DBManager:
         """
 
         conn = psycopg2.connect(
-            # dbname='postgres', **self.params)
             database="postgres",
             user="postgres",
             password="12345",
@@ -151,38 +151,48 @@ class DBManager:
                                 password="12345",
                                 port="5432")
 
-        with conn.cursor() as cur:
-            cur.execute("""
-                CREATE TABLE vacancies (
-                    vacancy_id SERIAL PRIMARY KEY,
-                    name VARCHAR(255) NOT NULL,
-                    employer VARCHAR(255),
-                    salary_from INTEGER,
-                    salary_to INTEGER,
-                    vacancy_url TEXT
-                )
-            """)
-        conn.commit()
-        conn.close()
+        try:
+            with conn:
+                with conn.cursor() as cur:
+                    cur.execute("""
+                                CREATE TABLE vacancies (
+                                vacancy_id SERIAL PRIMARY KEY,
+                                vac_id INTEGER,
+                                name VARCHAR(255) NOT NULL,
+                                vacancy_url TEXT,
+                                salary_from INTEGER,
+                                salary_to INTEGER,
+                                employer_id VARCHAR(255)
+                                );
+                                ALTER TABLE vacancies ADD CONSTRAINT fk_vacancies_employer_id FOREIGN KEY(employer_id) REFERENCES employers(emp_id);
+                                """)
+        except psycopg2.errors.DuplicateTable:
+            print(f"Таблица с таким именем есть")
+        finally:
+            conn.close()
 
         conn = psycopg2.connect(database=database_name,
                                 user="postgres",
                                 password="12345",
                                 port="5432")
 
-        with conn.cursor() as cur:
-            cur.execute("""
-                        CREATE TABLE employers (
-                            employer_id SERIAL PRIMARY KEY,
-                            name VARCHAR(255) NOT NULL,
-                            emp_id INTEGER,
-                            employer_url TEXT
-                        )
-                    """)
-        conn.commit()
-        conn.close()
+        try:
+            with conn:
+                with conn.cursor() as cur:
+                    cur.execute("""
+                                CREATE TABLE employers (
+                                employer_id SERIAL ,
+                                emp_id INTEGER,
+                                name VARCHAR(255) NOT NULL,                          
+                                employer_url TEXT,
+                                CONSTRAINT pk_employers_emp_id PRIMARY KEY (emp_id)
+                                """)
+        except psycopg2.errors.DuplicateTable:
+            print(f"Таблица с таким именем есть")
+        finally:
+            conn.close()
 
-    def save_data_to_database(self, data: list[dict[str, Any]], database_name: str):
+    def save_vacancies_to_database(self, data: list[dict[str, Any]], database_name: str):
         """
         Сохранение данных о вакансиях в базу данных.
         """
@@ -196,22 +206,66 @@ class DBManager:
             for vacancy in data:
                 cur.execute(
                     """
-                    INSERT INTO vacancies (name, employer, salary_from, salary_to, vacancy_url)
-                    VALUES (%s, %s, %s, %s, %s)
-                    RETURNING vacancy_id
+                    INSERT INTO vacancies (vac_id, name, vacancy_url, salary_from, salary_to, employer_id)
+                    VALUES (%s, %s, %s, %s, %s, %s)
                     """,
-                    (vacancy['vacancy'], vacancy['employer_name'], vacancy['salary_from'],
-                     vacancy['salary_to'], vacancy['url'])
+                    (vacancy['id'], vacancy['name'], vacancy['url'], vacancy['salary_from'], vacancy['salary_to'],
+                     vacancy['employer_id'])
                 )
-                # vacancy_id = cur.fetchone()[0]
         conn.commit()
         conn.close()
 
-    def get_companies_and_vacancies_count(self):
+    def save_employers_to_database(self, data: list[dict[str, Any]], database_name: str):
+        """
+        Сохранение данных о работодателях в базу данных.
+        :param self:
+        :param data:
+        :param database_name:
+        :return:
+        """
+        conn = psycopg2.connect(dbname=database_name,
+                                user="postgres",
+                                password="12345",
+                                port="5432")
+
+        with conn.cursor() as cur:
+            for employer in data:
+                cur.execute(
+                    """
+                    INSERT INTO employers (emp_id, name, employer_url)
+                    VALUES (%s, %s, %s)
+                    """,
+                    (employer['id'], employer['name'], employer['url'])
+                )
+        conn.commit()
+        conn.close()
+
+    def get_companies_and_vacancies_count(self, employers_list):
         """
         Получает список всех компаний и количество вакансий у каждой компании
         :return:
         """
+        conn = psycopg2.connect(
+            database="postgres",
+            user="postgres",
+            password="12345",
+            port="5432"
+        )
+        conn.autocommit = True
+        cur = conn.cursor()
+        cur.execute(f"""
+                    SELECT name, employer_id
+                    FROM employers
+                    WHERE employer_id in ({employers_list}) 
+                    and (SELECT employer_id, count(*) FROM vacancies
+                    GROUP BY employer_id
+                    ORDER BY COUNT(*) DESC)
+                    GROUP BY name;
+                    """)
+        data = cur.fetchone()
+        conn.commit()
+        conn.close()
+        return data
 
     def get_all_vacancies(self):
         """
@@ -241,11 +295,21 @@ class DBManager:
         """
         pass
 
-
-hh = HeadHunter("skyeng")
+# hh = HeadHunter("skyeng")
 # print(hh)
-var1 = hh.get_employer()
-print(var1)
-var2 = hh.get_vacancies("1122462")
-print(var2)
-# condb = Connector_DB(var2)
+# var1 = hh.get_employer()
+# print(var1)
+# var2 = hh.get_vacancies("1122462")
+# print(var2)
+# condb = Add_to_DB(['yandex', 'vk', 'skyeng', 'tinkoff', 'mts', 'rosneft', 'sberbank', 'kaspersky', 'megafon'])
+#
+# var3 = condb.get_all_employers()
+# print(var3)
+# hh = HeadHunter('tinkoff')
+# hh2 = HeadHunter('skyeng')
+# var1 = hh.get_employer()
+# var2 = hh.employers_data
+# var3 = hh2.employers_data
+# print(var1)
+# print(var2)
+# print(var3)
