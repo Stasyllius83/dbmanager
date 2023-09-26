@@ -155,7 +155,8 @@ class DBManager:
             with conn:
                 with conn.cursor() as cur:
                     cur.execute("""CREATE TABLE employers (
-                                employer_id INTEGER PRIMARY KEY,
+                                employer_id SERIAL PRIMARY KEY,
+                                emp_id VARCHAR(255),
                                 name VARCHAR(255) NOT NULL,                          
                                 employer_url TEXT)
                                 """)
@@ -180,9 +181,8 @@ class DBManager:
                                 vacancy_url TEXT,
                                 salary_from INTEGER,
                                 salary_to INTEGER,
-                                employer_id INTEGER
-                                );
-                                ALTER TABLE vacancies ADD CONSTRAINT fk_vacancies_employer_id FOREIGN KEY(employer_id) REFERENCES employers(employer_id);
+                                employer_id INTEGER REFERENCES employers(employer_id)
+                                )
                                 """)
         except psycopg2.errors.DuplicateTable:
             print(f"Таблица с таким именем есть")
@@ -231,7 +231,7 @@ class DBManager:
             for employer in data:
                 cur.execute(
                     """
-                    INSERT INTO employers (employer_id, name, employer_url)
+                    INSERT INTO employers (emp_id, name, employer_url)
                     VALUES (%s, %s, %s)
                     """,
                     (employer['id'], employer['name'], employer['url'])
