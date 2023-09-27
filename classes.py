@@ -82,7 +82,8 @@ class HeadHunter:
                                 'url': vacancy_data['apply_alternate_url'],
                                 'salary_from': vacancy_data['salary']['from'] if vacancy_data["salary"] else None,
                                 'salary_to': vacancy_data['salary']['to'],
-                                'employer_id': vacancy_data.get('employer', {}).get("id", 'N/A')}
+                                'employer_id': vacancy_data.get('employer', {}).get("id", 'N/A'),
+                                'employer_name': vacancy_data['employer']['name']}
                 if vacancy_dict['salary_to'] is None:
                     vacancy_dict['salary_to'] = vacancy_dict['salary_from']
                 vacancies_employer_dicts.append(vacancy_dict)
@@ -158,7 +159,8 @@ class DBManager:
                                 employer_id SERIAL PRIMARY KEY,
                                 emp_id VARCHAR(255),
                                 name VARCHAR(255) NOT NULL,                          
-                                employer_url TEXT)
+                                employer_url TEXT
+                                );
                                 """)
         except psycopg2.errors.DuplicateTable:
             print(f"Таблица с таким именем есть")
@@ -181,7 +183,8 @@ class DBManager:
                                 vacancy_url TEXT,
                                 salary_from INTEGER,
                                 salary_to INTEGER,
-                                employer_id INTEGER REFERENCES employers(employer_id)
+                                employer_id VARCHAR(255),
+                                employer_name VARCHAR(255)
                                 )
                                 """)
         except psycopg2.errors.DuplicateTable:
@@ -189,30 +192,6 @@ class DBManager:
         finally:
             conn.close()
 
-
-
-    def save_vacancies_to_database(self, data: list[dict[str, Any]], database_name: str):
-        """
-        Сохранение данных о вакансиях в базу данных.
-        """
-
-        conn = psycopg2.connect(dbname=database_name,
-                                user="postgres",
-                                password="12345",
-                                port="5432")
-
-        with conn.cursor() as cur:
-            for vacancy in data:
-                cur.execute(
-                    """
-                    INSERT INTO vacancies (vac_id, name, vacancy_url, salary_from, salary_to, employer_id)
-                    VALUES (%s, %s, %s, %s, %s, %s)
-                    """,
-                    (vacancy['id'], vacancy['name'], vacancy['url'], vacancy['salary_from'], vacancy['salary_to'],
-                     vacancy['employer_id'])
-                )
-        conn.commit()
-        conn.close()
 
     def save_employers_to_database(self, data: list[dict[str, Any]], database_name: str):
         """
@@ -238,6 +217,31 @@ class DBManager:
                 )
         conn.commit()
         conn.close()
+
+
+    def save_vacancies_to_database(self, data: list[dict[str, Any]], database_name: str):
+        """
+        Сохранение данных о вакансиях в базу данных.
+        """
+
+        conn = psycopg2.connect(dbname=database_name,
+                                user="postgres",
+                                password="12345",
+                                port="5432")
+
+        with conn.cursor() as cur:
+            for vacancy in data:
+                cur.execute(
+                    """
+                    INSERT INTO vacancies (vac_id, name, vacancy_url, salary_from, salary_to, employer_id, employer_name)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    """,
+                    (vacancy['id'], vacancy['name'], vacancy['url'], vacancy['salary_from'], vacancy['salary_to'],
+                     vacancy['employer_id'], vacancy['employer_name'])
+                )
+        conn.commit()
+        conn.close()
+
 
     def get_companies_and_vacancies_count(self, employers_list):
         """
