@@ -3,7 +3,6 @@ import psycopg2
 import psycopg2.errors
 import requests
 import json
-# from utils import get_currencies_hh
 from exceptions import ParsingError
 
 
@@ -160,7 +159,7 @@ class DBManager:
                                 emp_id VARCHAR(255),
                                 name VARCHAR(255) NOT NULL,                          
                                 employer_url TEXT
-                                );
+                                )
                                 """)
         except psycopg2.errors.DuplicateTable:
             print(f"Таблица с таким именем есть")

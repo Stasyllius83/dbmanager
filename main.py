@@ -21,7 +21,7 @@ def main():
         list_companies.append(name)
         dbase.save_vacancies_to_database(vacancies, db_name)
 
-    condb = Add_to_DB(['BAUF', 'Fersol'])
+    condb = Add_to_DB(list_companies)
     emp = condb.get_all_employers()
     dbase.save_employers_to_database(emp, db_name)
     # var = dbase.get_companies_and_vacancies_count()
