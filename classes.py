@@ -5,7 +5,6 @@ import requests
 import json
 
 
-
 class HeadHunter:
     """
         Класс для доступа к api HeadHunter
@@ -151,8 +150,7 @@ class DBManager:
         try:
             with conn:
                 with conn.cursor() as cur:
-                    cur.execute("""CREATE TABLE employers (
-                                id SERIAL,
+                    cur.execute("""CREATE TABLE IF NOT EXISTS employers (
                                 employer_id VARCHAR(255),
                                 name VARCHAR(255) NOT NULL,                          
                                 employer_url TEXT,
@@ -174,8 +172,7 @@ class DBManager:
             with conn:
                 with conn.cursor() as cur:
                     cur.execute("""
-                                CREATE TABLE vacancies (
-                                id SERIAL,
+                                CREATE TABLE IF NOT EXISTS vacancies (
                                 vacancy_id INTEGER,
                                 name VARCHAR(255) NOT NULL,
                                 vacancy_url TEXT,
@@ -241,82 +238,114 @@ class DBManager:
         conn.commit()
         conn.close()
 
-    def get_companies_and_vacancies_count(self, employers_list):
+    def get_companies_and_vacancies_count(self, database_name):
         """
         Получает список всех компаний и количество вакансий у каждой компании
         :return:
         """
         conn = psycopg2.connect(
-            database="postgres",
+            database=database_name,
             user="postgres",
             password="12345",
             port="5432"
         )
         conn.autocommit = True
-        cur = conn.cursor()
-        cur.execute(f"""
-                    SELECT name, employer_id
-                    FROM employers
-                    WHERE emp_id in ({employers_list}) 
-                    and (SELECT employer_id, count(*) FROM vacancies
-                    GROUP BY emp_id
-                    ORDER BY COUNT(*) DESC)
-                    GROUP BY name;
-                    """)
-        data = cur.fetchone()
-        conn.commit()
+        with conn.cursor() as cur:
+            cur.execute(f"""
+                            SELECT employer_id, COUNT(*)
+                            FROM vacancies
+                            GROUP BY employer_id
+                            ORDER BY COUNT(*) DESC
+                            """)
+            data = cur.fetchall()
+
         conn.close()
         return data
 
-    def get_all_vacancies(self):
+    def get_all_vacancies(self, database_name):
         """
         Получает список всех вакансий
         :return:
         """
-        pass
+        conn = psycopg2.connect(
+            database=database_name,
+            user="postgres",
+            password="12345",
+            port="5432"
+        )
+        conn.autocommit = True
+        with conn.cursor() as cur:
+            cur.execute(f"""
+                        SELECT *FROM vacancies
+                            """)
+            data = cur.fetchall()
 
-    def get_avg_salary(self):
+        conn.close()
+        return data
+
+    def get_avg_salary(self, database_name):
         """
         Получает среднюю зарплату по вакансиям
         :return:
         """
-        pass
+        conn = psycopg2.connect(
+            database=database_name,
+            user="postgres",
+            password="12345",
+            port="5432"
+        )
+        conn.autocommit = True
+        with conn.cursor() as cur:
+            cur.execute(f"""
+                            SELECT AVG(salary_from) FROM vacancies
+                            """)
+            data = cur.fetchone()
 
-    def get_vacancies_with_higher_salary(self):
+        conn.close()
+        return round(data[0])
+
+    def get_vacancies_with_higher_salary(self, database_name):
         """
         Получает список всех вакансий, у которых зарплата выше средней по всем вакансиям
         :return:
         """
-        pass
+        conn = psycopg2.connect(
+            database=database_name,
+            user="postgres",
+            password="12345",
+            port="5432"
+        )
+        conn.autocommit = True
+        with conn.cursor() as cur:
+            cur.execute(f"""
+                            SELECT *FROM vacancies
+                            WHERE salary_from > (SELECT AVG(salary_from) FROM vacancies)
+                            """)
+            data = cur.fetchall()
 
-    def get_vacancies_with_keyword(self, keyword):
+        conn.close()
+        return data
+
+    def get_vacancies_with_keyword(self, database_name, keyword):
         """
         Получает список всех вакансий в названии которых содержатся переданные в метод слова
         :return:
         """
-        pass
+        conn = psycopg2.connect(
+            database=database_name,
+            user="postgres",
+            password="12345",
+            port="5432"
+        )
+        conn.autocommit = True
+        with conn.cursor() as cur:
+            cur.execute(f"""
+                            SELECT *FROM vacancies
+                            WHERE employer_name LIKE '{keyword}'
+                                    """)
+            data = cur.fetchall()
+
+        conn.close()
+        return data
 
 
-# hh = HeadHunter("skyeng")
-# print(hh)
-# var1 = hh.get_employer()
-# print(var1)
-
-# var2 = hh.get_vacancies("1122462")
-# print(var2)
-# hh3 = hh.get_page_vacancies("1122462", 1)
-# print(hh3)
-# condb = Add_to_DB(['yandex', 'vk', 'skyeng', 'tinkoff', 'mts', 'rosneft', 'sberbank', 'kaspersky', 'megafon'])
-#
-# var3 = condb.get_all_employers()
-# print(var3)
-# hh = HeadHunter('tinkoff')
-# hh2 = HeadHunter('skyeng')
-#hh = HeadHunter("BAUF")
-# var1 = hh.get_employer()
-# var2 = hh.get_vacancies(5672395)
-#var2 = hh.get_page_vacancies(5672395, 1 )
-# var3 = hh2.employers_data
-# print(var1)
-# print(var3)
-#print(var2)
