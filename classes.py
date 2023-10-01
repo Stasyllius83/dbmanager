@@ -3,7 +3,7 @@ import psycopg2
 import psycopg2.errors
 import requests
 import json
-from exceptions import ParsingError
+
 
 
 class HeadHunter:
@@ -29,16 +29,13 @@ class HeadHunter:
         }
         response = requests.get(url_employers, params=params)
         if response.status_code != 200:
-            raise ParsingError(f"Ошибка получения данных по работодателю! Статус: {response.status_code}")
+            raise Exception(f"Ошибка получения данных по работодателю! Статус: {response.status_code}")
         employer = response.json().get('items', [])
         if employer is None:
             return "Данные не получены"
-        elif 'items' not in employer:
-            return "Нет указанных работодателей"
         else:
-            print(employer)
-            self.employers_dict = {'id': employer['items'][0]['id'], 'name': employer['items'][0]['name'],
-                                   'url': employer['items'][0]['alternate_url']}
+            self.employers_dict = {'id': employer[0]['id'], 'name': employer[0]['name'],
+                                   'url': employer[0]['alternate_url']}
             self.employers_data.append(self.employers_dict)
             return self.employers_dict
 
@@ -49,14 +46,14 @@ class HeadHunter:
         self.employer_id = employer_id
         url_vacancies = "https://api.hh.ru/vacancies"
         params = {
-            "employers_id": {self.employer_id},
+            "employer_id": {self.employer_id},
             "areas": 113,
             "per_page": 100,
             "page": page
         }
         response = requests.get(url_vacancies, params=params)
         if response.status_code != 200:
-            raise ParsingError(f"Ошибка получения вакансий! Статус: {response.status_code}")
+            raise Exception(f"Ошибка получения вакансий! Статус: {response.status_code}")
         data = response.content.decode()
         response.close()
         return data
@@ -155,10 +152,12 @@ class DBManager:
             with conn:
                 with conn.cursor() as cur:
                     cur.execute("""CREATE TABLE employers (
-                                employer_id SERIAL PRIMARY KEY,
-                                emp_id VARCHAR(255),
+                                id SERIAL,
+                                employer_id VARCHAR(255),
                                 name VARCHAR(255) NOT NULL,                          
-                                employer_url TEXT
+                                employer_url TEXT,
+                                
+                                CONSTRAINT pk_employers_employer_id PRIMARY KEY(employer_id)
                                 )
                                 """)
         except psycopg2.errors.DuplicateTable:
@@ -176,21 +175,23 @@ class DBManager:
                 with conn.cursor() as cur:
                     cur.execute("""
                                 CREATE TABLE vacancies (
-                                vacancy_id SERIAL PRIMARY KEY,
-                                vac_id INTEGER,
+                                id SERIAL,
+                                vacancy_id INTEGER,
                                 name VARCHAR(255) NOT NULL,
                                 vacancy_url TEXT,
                                 salary_from INTEGER,
                                 salary_to INTEGER,
                                 employer_id VARCHAR(255),
-                                employer_name VARCHAR(255)
+                                employer_name VARCHAR(255),
+                                
+                                CONSTRAINT pk_vacancies_vacancy_id PRIMARY KEY(vacancy_id),
+                                CONSTRAINT fk_vacancies_employer_id FOREIGN KEY(employer_id) REFERENCES employers(employer_id)
                                 )
                                 """)
         except psycopg2.errors.DuplicateTable:
             print(f"Таблица с таким именем есть")
         finally:
             conn.close()
-
 
     def save_employers_to_database(self, data: list[dict[str, Any]], database_name: str):
         """
@@ -209,14 +210,13 @@ class DBManager:
             for employer in data:
                 cur.execute(
                     """
-                    INSERT INTO employers (emp_id, name, employer_url)
+                    INSERT INTO employers (employer_id, name, employer_url)
                     VALUES (%s, %s, %s)
                     """,
                     (employer['id'], employer['name'], employer['url'])
                 )
         conn.commit()
         conn.close()
-
 
     def save_vacancies_to_database(self, data: list[dict[str, Any]], database_name: str):
         """
@@ -232,7 +232,7 @@ class DBManager:
             for vacancy in data:
                 cur.execute(
                     """
-                    INSERT INTO vacancies (vac_id, name, vacancy_url, salary_from, salary_to, employer_id, employer_name)
+                    INSERT INTO vacancies (vacancy_id, name, vacancy_url, salary_from, salary_to, employer_id, employer_name)
                     VALUES (%s, %s, %s, %s, %s, %s, %s)
                     """,
                     (vacancy['id'], vacancy['name'], vacancy['url'], vacancy['salary_from'], vacancy['salary_to'],
@@ -240,7 +240,6 @@ class DBManager:
                 )
         conn.commit()
         conn.close()
-
 
     def get_companies_and_vacancies_count(self, employers_list):
         """
@@ -258,9 +257,9 @@ class DBManager:
         cur.execute(f"""
                     SELECT name, employer_id
                     FROM employers
-                    WHERE employer_id in ({employers_list}) 
+                    WHERE emp_id in ({employers_list}) 
                     and (SELECT employer_id, count(*) FROM vacancies
-                    GROUP BY employer_id
+                    GROUP BY emp_id
                     ORDER BY COUNT(*) DESC)
                     GROUP BY name;
                     """)
@@ -297,21 +296,27 @@ class DBManager:
         """
         pass
 
+
 # hh = HeadHunter("skyeng")
 # print(hh)
 # var1 = hh.get_employer()
 # print(var1)
+
 # var2 = hh.get_vacancies("1122462")
 # print(var2)
+# hh3 = hh.get_page_vacancies("1122462", 1)
+# print(hh3)
 # condb = Add_to_DB(['yandex', 'vk', 'skyeng', 'tinkoff', 'mts', 'rosneft', 'sberbank', 'kaspersky', 'megafon'])
 #
 # var3 = condb.get_all_employers()
 # print(var3)
 # hh = HeadHunter('tinkoff')
 # hh2 = HeadHunter('skyeng')
+#hh = HeadHunter("BAUF")
 # var1 = hh.get_employer()
-# var2 = hh.employers_data
+# var2 = hh.get_vacancies(5672395)
+#var2 = hh.get_page_vacancies(5672395, 1 )
 # var3 = hh2.employers_data
 # print(var1)
-# print(var2)
 # print(var3)
+#print(var2)
