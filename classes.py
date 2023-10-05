@@ -7,7 +7,7 @@ import json
 
 class HeadHunter:
     """
-        Класс для доступа к api HeadHunter
+        Класс для доступа к api HeadHunter.
         """
     employers_dict = {}
     employers_data = []
@@ -120,36 +120,54 @@ class DBManager:
 
     def __init__(self):
         self.conn = None
-        self.cur = None
+        # self.conn = psycopg2.connect(
+        #     database="postgres",
+        #     user="postgres",
+        #     password="12345",
+        #     port="5432"
+        # )
 
-    def create_database(self, database_name: str):
-        """
-        Создание базы данных и таблиц для сохранения данных о .
-        """
 
+    @classmethod
+    def connect_to_db(cls):
         conn = psycopg2.connect(
             database="postgres",
             user="postgres",
             password="12345",
             port="5432"
         )
-        conn.autocommit = True
-        cur = conn.cursor()
+        cls.conn = conn
+
+
+    def create_database(self, database_name: str):
+        """
+        Создание базы данных и таблиц для сохранения данных о .
+        """
+
+        # conn = psycopg2.connect(
+        #     database="postgres",
+        #     user="postgres",
+        #     password="12345",
+        #     port="5432"
+        # )
+        self.connect_to_db()
+        self.conn.autocommit = True
+        cur = self.conn.cursor()
 
         try:
             cur.execute(f"CREATE DATABASE {database_name}")
         except psycopg2.errors.DuplicateDatabase:
             print(f"ОШИБКА: база данных {database_name} уже существует")
-        conn.close()
+        self.conn.close()
 
-        conn = psycopg2.connect(database=database_name,
-                                user="postgres",
-                                password="12345",
-                                port="5432")
+        # conn = psycopg2.connect(database=database_name,
+        #                         user="postgres",
+        #                         password="12345",
+        #                         port="5432")
 
         try:
-            with conn:
-                with conn.cursor() as cur:
+            with self.conn:
+                with self.conn.cursor() as cur:
                     cur.execute("""CREATE TABLE IF NOT EXISTS employers (
                                 employer_id VARCHAR(255),
                                 name VARCHAR(255) NOT NULL,                          
@@ -161,16 +179,16 @@ class DBManager:
         except psycopg2.errors.DuplicateTable:
             print(f"Таблица с таким именем есть")
         finally:
-            conn.close()
+            self.conn.close()
 
-        conn = psycopg2.connect(database=database_name,
-                                user="postgres",
-                                password="12345",
-                                port="5432")
+        # conn = psycopg2.connect(database=database_name,
+        #                         user="postgres",
+        #                         password="12345",
+        #                         port="5432")
 
         try:
-            with conn:
-                with conn.cursor() as cur:
+            with self.conn:
+                with self.conn.cursor() as cur:
                     cur.execute("""
                                 CREATE TABLE IF NOT EXISTS vacancies (
                                 vacancy_id INTEGER,
@@ -188,7 +206,7 @@ class DBManager:
         except psycopg2.errors.DuplicateTable:
             print(f"Таблица с таким именем есть")
         finally:
-            conn.close()
+            self.conn.close()
 
     def save_employers_to_database(self, data: list[dict[str, Any]], database_name: str):
         """
@@ -198,12 +216,12 @@ class DBManager:
         :param database_name:
         :return:
         """
-        conn = psycopg2.connect(dbname=database_name,
-                                user="postgres",
-                                password="12345",
-                                port="5432")
-
-        with conn.cursor() as cur:
+        # conn = psycopg2.connect(dbname=database_name,
+        #                         user="postgres",
+        #                         password="12345",
+        #                         port="5432")
+        self.connect_to_db()
+        with self.conn.cursor() as cur:
             for employer in data:
                 cur.execute(
                     """
@@ -212,20 +230,20 @@ class DBManager:
                     """,
                     (employer['id'], employer['name'], employer['url'])
                 )
-        conn.commit()
-        conn.close()
+        self.conn.commit()
+        self.conn.close()
 
     def save_vacancies_to_database(self, data: list[dict[str, Any]], database_name: str):
         """
         Сохранение данных о вакансиях в базу данных.
         """
 
-        conn = psycopg2.connect(dbname=database_name,
-                                user="postgres",
-                                password="12345",
-                                port="5432")
-
-        with conn.cursor() as cur:
+        # conn = psycopg2.connect(dbname=database_name,
+        #                         user="postgres",
+        #                         password="12345",
+        #                         port="5432")
+        self.connect_to_db()
+        with self.conn.cursor() as cur:
             for vacancy in data:
                 cur.execute(
                     """
@@ -235,22 +253,23 @@ class DBManager:
                     (vacancy['id'], vacancy['name'], vacancy['url'], vacancy['salary_from'], vacancy['salary_to'],
                      vacancy['employer_id'], vacancy['employer_name'])
                 )
-        conn.commit()
-        conn.close()
+        self.conn.commit()
+        self.conn.close()
 
     def get_companies_and_vacancies_count(self, database_name):
         """
         Получает список всех компаний и количество вакансий у каждой компании
         :return:
         """
-        conn = psycopg2.connect(
-            database=database_name,
-            user="postgres",
-            password="12345",
-            port="5432"
-        )
-        conn.autocommit = True
-        with conn.cursor() as cur:
+        # conn = psycopg2.connect(
+        #     database=database_name,
+        #     user="postgres",
+        #     password="12345",
+        #     port="5432"
+        # )
+        self.connect_to_db()
+        self.conn.autocommit = True
+        with self.conn.cursor() as cur:
             cur.execute(f"""
                             SELECT employer_id, COUNT(*)
                             FROM vacancies
@@ -259,7 +278,7 @@ class DBManager:
                             """)
             data = cur.fetchall()
 
-        conn.close()
+        self.conn.close()
         return data
 
     def get_all_vacancies(self, database_name):
@@ -267,20 +286,21 @@ class DBManager:
         Получает список всех вакансий
         :return:
         """
-        conn = psycopg2.connect(
-            database=database_name,
-            user="postgres",
-            password="12345",
-            port="5432"
-        )
-        conn.autocommit = True
-        with conn.cursor() as cur:
+        # conn = psycopg2.connect(
+        #     database=database_name,
+        #     user="postgres",
+        #     password="12345",
+        #     port="5432"
+        # )
+        self.connect_to_db()
+        self.conn.autocommit = True
+        with self.conn.cursor() as cur:
             cur.execute(f"""
                         SELECT *FROM vacancies
                             """)
             data = cur.fetchall()
 
-        conn.close()
+        self.conn.close()
         return data
 
     def get_avg_salary(self, database_name):
@@ -288,20 +308,21 @@ class DBManager:
         Получает среднюю зарплату по вакансиям
         :return:
         """
-        conn = psycopg2.connect(
-            database=database_name,
-            user="postgres",
-            password="12345",
-            port="5432"
-        )
-        conn.autocommit = True
-        with conn.cursor() as cur:
+        # conn = psycopg2.connect(
+        #     database=database_name,
+        #     user="postgres",
+        #     password="12345",
+        #     port="5432"
+        # )
+        self.connect_to_db()
+        self.conn.autocommit = True
+        with self.conn.cursor() as cur:
             cur.execute(f"""
                             SELECT AVG(salary_from) FROM vacancies
                             """)
             data = cur.fetchone()
 
-        conn.close()
+        self.conn.close()
         return round(data[0])
 
     def get_vacancies_with_higher_salary(self, database_name):
@@ -309,21 +330,22 @@ class DBManager:
         Получает список всех вакансий, у которых зарплата выше средней по всем вакансиям
         :return:
         """
-        conn = psycopg2.connect(
-            database=database_name,
-            user="postgres",
-            password="12345",
-            port="5432"
-        )
-        conn.autocommit = True
-        with conn.cursor() as cur:
+        # conn = psycopg2.connect(
+        #     database=database_name,
+        #     user="postgres",
+        #     password="12345",
+        #     port="5432"
+        # )
+        self.connect_to_db()
+        self.conn.autocommit = True
+        with self.conn.cursor() as cur:
             cur.execute(f"""
                             SELECT *FROM vacancies
                             WHERE salary_from > (SELECT AVG(salary_from) FROM vacancies)
                             """)
             data = cur.fetchall()
 
-        conn.close()
+        self.conn.close()
         return data
 
     def get_vacancies_with_keyword(self, database_name, keyword):
@@ -331,21 +353,20 @@ class DBManager:
         Получает список всех вакансий в названии которых содержатся переданные в метод слова
         :return:
         """
-        conn = psycopg2.connect(
-            database=database_name,
-            user="postgres",
-            password="12345",
-            port="5432"
-        )
-        conn.autocommit = True
-        with conn.cursor() as cur:
+        # conn = psycopg2.connect(
+        #     database=database_name,
+        #     user="postgres",
+        #     password="12345",
+        #     port="5432"
+        # )
+        self.connect_to_db()
+        self.conn.autocommit = True
+        with self.conn.cursor() as cur:
             cur.execute(f"""
                             SELECT *FROM vacancies
                             WHERE employer_name LIKE '{keyword}'
                                     """)
             data = cur.fetchall()
 
-        conn.close()
+        self.conn.close()
         return data
-
-

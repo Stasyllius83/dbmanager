@@ -6,7 +6,7 @@ list_companies = []
 
 
 def main():
-    # Создание экземпляра класса DBManager и создание БД db_headhunter
+    # Создание экземпляра класса DBManager и создание БД db_headhunter.
     db_name = 'db_headhunter'
     dbase = DBManager()
     dbase.create_database(db_name)
